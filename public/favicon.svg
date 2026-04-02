@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0C0F14"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B35"/>
+      <stop offset="100%" stop-color="#FF8F5E"/>
+    </linearGradient>
+  </defs>
+  <text x="256" y="220" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="900" font-size="120" fill="url(#g)">26.2</text>
+  <text x="256" y="340" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="60" fill="#8B95A8" letter-spacing="12">DUBLIN</text>
+  <rect x="120" y="370" width="272" height="4" rx="2" fill="#FF6B35" opacity="0.6"/>
+</svg>
