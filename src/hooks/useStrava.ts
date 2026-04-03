@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 
 // Strava OAuth config - client ID is public, secret stays server-side
-const STRAVA_CLIENT_ID = '142494'
+const STRAVA_CLIENT_ID = '219954'
 const STRAVA_REDIRECT_URI = typeof window !== 'undefined'
   ? `${window.location.origin}/settings`
   : ''
