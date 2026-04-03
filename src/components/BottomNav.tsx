@@ -36,11 +36,14 @@ const NAV_ITEMS = [
     ),
   },
   {
-    path: '/strength',
-    label: 'Strength',
+    path: '/run',
+    label: 'Run',
     icon: (active: boolean) => (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6.5 6.5h11M6.5 17.5h11M3 12h18M7 9.5V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.5M17 9.5V8a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1.5" />
+        <circle cx="17" cy="4" r="2" />
+        <path d="M15.59 13.51l-1.59 6.49L12 16l-3 4" />
+        <path d="M9.5 8.5L12 6l2.59 2.59L18 12l-4 1" />
+        <path d="M5.5 12.5L9 11l1.5 3" />
       </svg>
     ),
   },

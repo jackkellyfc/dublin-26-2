@@ -31,6 +31,16 @@ export interface RaceResult {
   isPB: boolean
 }
 
+export interface CompletedRunRecord {
+  id: string
+  date: string
+  distance: number
+  duration: number
+  avgPace: string
+  splits: { km: number; time: number; pace: string }[]
+  calories: number
+}
+
 export interface AppState {
   completedSessions: Record<string, boolean>
   fatigueLog: Record<string, string>
@@ -40,6 +50,7 @@ export interface AppState {
   userProfile: UserProfile
   raceResults: RaceResult[]
   unlockedBadges: Record<string, string> // badgeId -> date unlocked
+  runHistory: CompletedRunRecord[]
 }
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
@@ -67,6 +78,7 @@ export const DEFAULT_APP_STATE: AppState = {
   userProfile: DEFAULT_USER_PROFILE,
   raceResults: [],
   unlockedBadges: {},
+  runHistory: [],
 }
 
 interface UseAdaptivePlanArgs {
