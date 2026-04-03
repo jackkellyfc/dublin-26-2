@@ -114,6 +114,44 @@ export default function Progress({ appState }: ProgressProps) {
       </h2>
       <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 20 }}>Track your journey to Dublin</p>
 
+      {/* GPS Run Stats */}
+      {(appState.runHistory?.length || 0) > 0 && (
+        <div className="glass-card" style={{ padding: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: '#FC4C02', fontWeight: 700, marginBottom: 12, letterSpacing: 0.5 }}>
+            TRACKED RUNS
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div className="font-heading" style={{ fontWeight: 800, fontSize: 22, color: 'var(--accent)' }}>
+                {appState.runHistory.length}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text2)', fontWeight: 600, letterSpacing: 0.5 }}>RUNS</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="font-heading" style={{ fontWeight: 800, fontSize: 22, color: 'var(--green)' }}>
+                {appState.runHistory.reduce((s, r) => s + r.distance, 0).toFixed(1)}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text2)', fontWeight: 600, letterSpacing: 0.5 }}>KM</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div className="font-heading" style={{ fontWeight: 800, fontSize: 22, color: 'var(--yellow)' }}>
+                {(() => {
+                  const runs = appState.runHistory.filter(r => r.avgPace && r.avgPace !== '--:--')
+                  if (runs.length === 0) return '--:--'
+                  const totalSec = runs.reduce((s, r) => {
+                    const [m, sec] = r.avgPace.split(':').map(Number)
+                    return s + m * 60 + (sec || 0)
+                  }, 0)
+                  const avg = totalSec / runs.length
+                  return `${Math.floor(avg / 60)}:${Math.floor(avg % 60).toString().padStart(2, '0')}`
+                })()}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text2)', fontWeight: 600, letterSpacing: 0.5 }}>AVG PACE</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 20 }}>
         <div className="glass-card" style={{ padding: 16, textAlign: 'center' }}>

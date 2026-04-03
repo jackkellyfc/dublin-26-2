@@ -6,7 +6,7 @@ const STRAVA_REDIRECT_URI = typeof window !== 'undefined'
   ? `${window.location.origin}/settings`
   : ''
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
-const STRAVA_SCOPE = 'read,activity:read_all'
+const STRAVA_SCOPE = 'read,activity:read_all,activity:write'
 
 export interface StravaAthlete {
   id: number

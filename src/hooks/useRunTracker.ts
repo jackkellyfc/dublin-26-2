@@ -24,9 +24,12 @@ export interface CompletedRun {
 }
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'finished'
+export type GPSStatus = 'off' | 'searching' | 'locked' | 'error'
 
 interface RunState {
   status: RunStatus
+  gpsStatus: GPSStatus
+  gpsError: string | null
   elapsed: number // seconds
   distance: number // km
   currentPace: string
@@ -38,6 +41,8 @@ interface RunState {
 
 const INITIAL_STATE: RunState = {
   status: 'idle',
+  gpsStatus: 'off',
+  gpsError: null,
   elapsed: 0,
   distance: 0,
   currentPace: '--:--',
@@ -72,18 +77,36 @@ export function useRunTracker() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef(state)
   const lastSplitKm = useRef(0)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
 
   // Keep ref in sync
   useEffect(() => {
     stateRef.current = state
   }, [state])
 
+  // Wake lock to keep screen on during run
+  const requestWakeLock = useCallback(async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen')
+      }
+    } catch {
+      // Wake lock not available or failed — not critical
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release()
+      wakeLockRef.current = null
+    }
+  }, [])
+
   const startTimer = useCallback(() => {
     if (timerRef.current) return
     timerRef.current = setInterval(() => {
       setState(prev => {
         const elapsed = prev.elapsed + 1
-        // Recalculate avg pace
         const avgPace = prev.distance > 0.01
           ? formatPace(elapsed / prev.distance)
           : '--:--'
@@ -99,8 +122,38 @@ export function useRunTracker() {
     }
   }, [])
 
-  const startGPS = useCallback(() => {
-    if (!navigator.geolocation) return
+  // Check GPS permission first
+  const checkGPSPermission = useCallback(async (): Promise<boolean> => {
+    if (!navigator.geolocation) {
+      setState(prev => ({ ...prev, gpsStatus: 'error', gpsError: 'GPS not available on this device' }))
+      return false
+    }
+
+    // Try to check permission status
+    try {
+      if ('permissions' in navigator) {
+        const perm = await navigator.permissions.query({ name: 'geolocation' })
+        if (perm.state === 'denied') {
+          setState(prev => ({
+            ...prev,
+            gpsStatus: 'error',
+            gpsError: 'Location permission denied. Enable it in your browser/phone settings.',
+          }))
+          return false
+        }
+      }
+    } catch {
+      // permissions API not available — continue anyway
+    }
+
+    return true
+  }, [])
+
+  const startGPS = useCallback(async () => {
+    const ok = await checkGPSPermission()
+    if (!ok) return
+
+    setState(prev => ({ ...prev, gpsStatus: 'searching', gpsError: null }))
 
     const id = navigator.geolocation.watchPosition(
       (pos) => {
@@ -111,7 +164,10 @@ export function useRunTracker() {
         }
 
         setState(prev => {
-          if (prev.status !== 'running') return prev
+          // Mark GPS as locked once we get first position
+          const gpsStatus: GPSStatus = 'locked'
+
+          if (prev.status !== 'running') return { ...prev, gpsStatus }
 
           const route = [...prev.route, point]
           let distance = prev.distance
@@ -119,24 +175,24 @@ export function useRunTracker() {
           if (prev.route.length > 0) {
             const lastPoint = prev.route[prev.route.length - 1]
             const delta = haversineDistance(lastPoint, point)
-            // Filter out GPS jitter (ignore jumps > 200m or < 1m)
-            if (delta > 0.001 && delta < 0.2) {
+            // Filter out GPS jitter (ignore jumps > 150m or < 2m)
+            if (delta > 0.002 && delta < 0.15) {
               distance += delta
             }
           }
 
-          // Current pace from last 30 seconds of movement
+          // Current pace from last 20 seconds of movement
           let currentPace = prev.currentPace
           if (route.length >= 3) {
             const now = Date.now()
-            const recent = route.filter(p => now - p.timestamp < 30000)
+            const recent = route.filter(p => now - p.timestamp < 20000)
             if (recent.length >= 2) {
               let recentDist = 0
               for (let i = 1; i < recent.length; i++) {
                 recentDist += haversineDistance(recent[i - 1], recent[i])
               }
               const recentTime = (recent[recent.length - 1].timestamp - recent[0].timestamp) / 1000
-              if (recentDist > 0.005) {
+              if (recentDist > 0.003) {
                 currentPace = formatPace(recentTime / recentDist)
               }
             }
@@ -153,23 +209,27 @@ export function useRunTracker() {
               pace: formatPace(splitTime),
             })
             lastSplitKm.current = currentKm
-            return { ...prev, route, distance, currentPace, splits, currentKmStart: prev.elapsed }
+            return { ...prev, route, distance, currentPace, splits, currentKmStart: prev.elapsed, gpsStatus }
           }
 
-          return { ...prev, route, distance, currentPace }
+          return { ...prev, route, distance, currentPace, gpsStatus }
         })
       },
       (err) => {
-        console.warn('GPS error:', err.message)
+        let msg = 'GPS error'
+        if (err.code === 1) msg = 'Location permission denied. Check your phone settings and allow location access.'
+        else if (err.code === 2) msg = 'GPS signal unavailable. Move outdoors or wait for signal.'
+        else if (err.code === 3) msg = 'GPS timed out. Make sure location services are on.'
+        setState(prev => ({ ...prev, gpsStatus: 'error', gpsError: msg }))
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 2000,
-        timeout: 10000,
+        maximumAge: 3000,
+        timeout: 15000,
       }
     )
     watchIdRef.current = id
-  }, [])
+  }, [checkGPSPermission])
 
   const stopGPS = useCallback(() => {
     if (watchIdRef.current !== null) {
@@ -178,11 +238,12 @@ export function useRunTracker() {
     }
   }, [])
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     setState(prev => ({ ...prev, status: 'running' }))
     startTimer()
-    startGPS()
-  }, [startTimer, startGPS])
+    await startGPS()
+    await requestWakeLock()
+  }, [startTimer, startGPS, requestWakeLock])
 
   const pause = useCallback(() => {
     setState(prev => ({ ...prev, status: 'paused' }))
@@ -197,6 +258,7 @@ export function useRunTracker() {
   const finish = useCallback((): CompletedRun => {
     stopTimer()
     stopGPS()
+    releaseWakeLock()
     const s = stateRef.current
     const run: CompletedRun = {
       id: `run-${Date.now()}`,
@@ -206,26 +268,28 @@ export function useRunTracker() {
       avgPace: s.distance > 0 ? formatPace(s.elapsed / s.distance) : '--:--',
       route: s.route,
       splits: s.splits,
-      calories: Math.round(s.distance * 62), // rough estimate ~62 cal/km
+      calories: Math.round(s.distance * 62),
     }
     setState(prev => ({ ...prev, status: 'finished' }))
     return run
-  }, [stopTimer, stopGPS])
+  }, [stopTimer, stopGPS, releaseWakeLock])
 
   const reset = useCallback(() => {
     stopTimer()
     stopGPS()
+    releaseWakeLock()
     lastSplitKm.current = 0
     setState(INITIAL_STATE)
-  }, [stopTimer, stopGPS])
+  }, [stopTimer, stopGPS, releaseWakeLock])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopTimer()
       stopGPS()
+      releaseWakeLock()
     }
-  }, [stopTimer, stopGPS])
+  }, [stopTimer, stopGPS, releaseWakeLock])
 
   return {
     ...state,
