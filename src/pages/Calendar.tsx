@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import WeekSelector from '../components/WeekSelector'
 import SessionCard from '../components/SessionCard'
 import SessionModal from '../components/SessionModal'
 import MileageBar from '../components/MileageBar'
+import CelebrationModal from '../components/CelebrationModal'
 import { useAdaptivePlan, START_DATE } from '../hooks/useAdaptivePlan'
 import type { AppState } from '../hooks/useAdaptivePlan'
 import { useWeekNavigation } from '../hooks/useWeekNavigation'
@@ -16,6 +17,7 @@ interface CalendarProps {
 
 export default function Calendar({ appState, setAppState }: CalendarProps) {
   const [selectedSession, setSelectedSession] = useState<number | null>(null)
+  const [celebrationSession, setCelebrationSession] = useState<number | null>(null)
 
   const initialWeek = useMemo(() => {
     const weeksSinceStart = Math.floor((Date.now() - START_DATE.getTime()) / (7 * 24 * 60 * 60 * 1000))
@@ -26,22 +28,45 @@ export default function Calendar({ appState, setAppState }: CalendarProps) {
   const plan = useAdaptivePlan({ appState, selectedWeek })
   const currentWeek = plan.weeks[selectedWeek]
 
+  const totalCompleted = Object.keys(appState.completedSessions).length
+  const totalKm = useMemo(() => {
+    return Object.entries(appState.completedSessions).reduce((sum, [k]) => {
+      const weekNum = parseInt(k.split('-')[0].replace('week', ''))
+      const dayName = k.split('-')[1]
+      const w = plan.weeks[weekNum - 1]
+      if (!w) return sum
+      const s = w.sessions.find(s => s.day === dayName)
+      return sum + (s ? s.distance : 0)
+    }, 0)
+  }, [appState.completedSessions, plan.weeks])
+
   if (!currentWeek) return null
 
   const weekCompletedKm = currentWeek.sessions.reduce((sum, s) =>
     sum + (appState.completedSessions[`week${selectedWeek + 1}-${s.day}`] ? s.distance : 0), 0)
 
-  const toggleSession = (day: string) => {
+  const toggleSession = useCallback((day: string) => {
     const key = `week${selectedWeek + 1}-${day}`
+    const wasCompleted = !!appState.completedSessions[key]
+
     setAppState(prev => {
       const next = { ...prev.completedSessions }
       if (next[key]) delete next[key]
       else next[key] = true
       return { ...prev, completedSessions: next }
     })
-  }
+
+    if (!wasCompleted) {
+      const idx = currentWeek.sessions.findIndex(s => s.day === day)
+      const session = currentWeek.sessions[idx]
+      if (session && session.type !== 'rest') {
+        setCelebrationSession(idx)
+      }
+    }
+  }, [selectedWeek, appState.completedSessions, setAppState, currentWeek])
 
   const modalSession = selectedSession !== null ? currentWeek.sessions[selectedSession] : null
+  const celebSession = celebrationSession !== null ? currentWeek.sessions[celebrationSession] : null
 
   return (
     <motion.div
@@ -160,6 +185,16 @@ export default function Calendar({ appState, setAppState }: CalendarProps) {
             toggleSession(modalSession.day)
             setSelectedSession(null)
           }}
+        />
+      )}
+
+      {/* Celebration */}
+      {celebSession && (
+        <CelebrationModal
+          session={celebSession}
+          totalCompleted={totalCompleted + 1}
+          totalKm={totalKm + celebSession.distance}
+          onClose={() => setCelebrationSession(null)}
         />
       )}
     </motion.div>
