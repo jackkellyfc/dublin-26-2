@@ -423,7 +423,7 @@ export default function RunTracker({ appState, setAppState }: Props) {
                 padding: '5px 14px', borderRadius: 20,
                 background: tracker.gpsStatus === 'error'
                   ? 'rgba(255,107,107,0.15)'
-                  : tracker.gpsStatus === 'searching'
+                  : (tracker.gpsStatus === 'searching' || tracker.gpsStatus === 'weak')
                     ? 'rgba(255,179,71,0.15)'
                     : tracker.status === 'paused'
                       ? 'rgba(255,179,71,0.15)'
@@ -431,7 +431,7 @@ export default function RunTracker({ appState, setAppState }: Props) {
                 fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
                 color: tracker.gpsStatus === 'error'
                   ? 'var(--red)'
-                  : tracker.gpsStatus === 'searching'
+                  : (tracker.gpsStatus === 'searching' || tracker.gpsStatus === 'weak')
                     ? 'var(--yellow)'
                     : tracker.status === 'paused'
                       ? 'var(--yellow)'
@@ -444,13 +444,17 @@ export default function RunTracker({ appState, setAppState }: Props) {
                 style={{
                   width: 8, height: 8, borderRadius: '50%',
                   background: tracker.gpsStatus === 'error' ? 'var(--red)'
-                    : tracker.gpsStatus === 'searching' ? 'var(--yellow)'
+                    : (tracker.gpsStatus === 'searching' || tracker.gpsStatus === 'weak') ? 'var(--yellow)'
                       : tracker.status === 'paused' ? 'var(--yellow)' : 'var(--green)',
                 }}
               />
               {tracker.gpsStatus === 'error' ? 'GPS ERROR'
                 : tracker.gpsStatus === 'searching' ? 'FINDING GPS...'
-                  : tracker.status === 'paused' ? 'PAUSED' : 'TRACKING'}
+                  : tracker.gpsStatus === 'weak' ? 'WEAK SIGNAL'
+                    : tracker.status === 'paused' ? 'PAUSED' : 'TRACKING'}
+              {tracker.gpsAccuracy !== null && tracker.gpsStatus !== 'error' && tracker.gpsStatus !== 'searching' && (
+                <span style={{ opacity: 0.7, marginLeft: 4 }}>±{Math.round(tracker.gpsAccuracy)}m</span>
+              )}
             </motion.div>
           </div>
 
