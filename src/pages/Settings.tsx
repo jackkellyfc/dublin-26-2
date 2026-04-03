@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { AppState, RaceResult } from '../hooks/useAdaptivePlan'
 import { computePaces } from '../data/paces'
 import { VOLUME_RULES, RECOVERY_PRACTICES } from '../data/injuryWarnings'
+import { useStrava, stravaToRun } from '../hooks/useStrava'
 
 interface SettingsProps {
   appState: AppState
@@ -33,6 +34,8 @@ export default function Settings({ appState, setAppState }: SettingsProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [showRaceForm, setShowRaceForm] = useState(false)
   const [newRace, setNewRace] = useState({ distance: '5K', time: '', date: '', customDistance: '' })
+  const strava = useStrava()
+  const [lastSyncCount, setLastSyncCount] = useState(0)
 
   const profile = appState.userProfile
   const totalCompleted = Object.keys(appState.completedSessions).length
@@ -84,6 +87,37 @@ export default function Settings({ appState, setAppState }: SettingsProps) {
     }))
   }
 
+  const syncStrava = async () => {
+    const runs = await strava.fetchActivities(profile.startDate)
+    if (!runs || runs.length === 0) {
+      setLastSyncCount(0)
+      return
+    }
+    const converted = runs.map(stravaToRun)
+    setLastSyncCount(converted.length)
+
+    // Save synced runs to run history
+    setAppState(prev => {
+      const existingIds = new Set((prev.runHistory || []).map(r => r.id))
+      const newRuns = converted
+        .filter(r => !existingIds.has(`strava-${r.stravaId}`))
+        .map(r => ({
+          id: `strava-${r.stravaId}`,
+          date: r.date,
+          distance: r.distance,
+          duration: r.duration,
+          avgPace: r.avgPace,
+          splits: [],
+          calories: Math.round(r.distance * 62),
+        }))
+      return {
+        ...prev,
+        runHistory: [...(prev.runHistory || []), ...newRuns],
+        stravaLastSync: new Date().toISOString(),
+      }
+    })
+  }
+
   const resetProgress = () => {
     setAppState(prev => ({
       ...prev,
@@ -109,6 +143,100 @@ export default function Settings({ appState, setAppState }: SettingsProps) {
       <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 20 }}>
         Edit your profile, race details & pace zones
       </p>
+
+      {/* Strava Integration */}
+      <div className="glass-card" style={{ padding: 16, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z" fill="#FC4C02"/>
+            <path d="M10.233 13.828L7.169 7.656 4.105 13.828h3.064l3.064-6.172 3.064 6.172h-3.064z" fill="#FC4C02" opacity="0.6"/>
+          </svg>
+          <div style={{ fontSize: 11, color: '#FC4C02', fontWeight: 700, letterSpacing: 0.5 }}>
+            STRAVA
+          </div>
+        </div>
+
+        {strava.isConnected ? (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'var(--bg)' }}>
+              {strava.athlete?.profile && (
+                <img src={strava.athlete.profile} alt="" style={{ width: 36, height: 36, borderRadius: '50%' }} />
+              )}
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  {strava.athlete?.firstname} {strava.athlete?.lastname}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>Connected</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={syncStrava}
+                disabled={strava.syncing}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                  background: strava.syncing ? 'var(--bg4)' : 'linear-gradient(135deg, #FC4C02, #FF6B35)',
+                  color: 'white', fontSize: 12, fontWeight: 700, cursor: strava.syncing ? 'wait' : 'pointer',
+                }}
+              >
+                {strava.syncing ? 'Syncing...' : 'Sync Activities'}
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={strava.disconnect}
+                style={{
+                  padding: '10px 14px', borderRadius: 10, border: '1px solid var(--bg4)',
+                  background: 'transparent', color: 'var(--text2)', fontSize: 12, fontWeight: 700,
+                }}
+              >
+                Disconnect
+              </motion.button>
+            </div>
+
+            {lastSyncCount > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8, textAlign: 'center' }}>
+                Synced {lastSyncCount} run{lastSyncCount > 1 ? 's' : ''} from Strava
+              </div>
+            )}
+
+            {strava.error && (
+              <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, textAlign: 'center' }}>
+                {strava.error}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 12, lineHeight: 1.6 }}>
+              Connect Strava to auto-sync your runs. Track with Strava's GPS and your activities appear here automatically.
+            </p>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={strava.connect}
+              disabled={strava.loading}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, #FC4C02, #FF6B35)',
+                color: 'white', fontSize: 13, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066l-2.084 4.116z"/>
+                <path d="M10.233 13.828L7.169 7.656 4.105 13.828h3.064l3.064-6.172 3.064 6.172h-3.064z" opacity="0.6"/>
+              </svg>
+              {strava.loading ? 'Connecting...' : 'Connect with Strava'}
+            </motion.button>
+            {strava.error && (
+              <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8, textAlign: 'center' }}>
+                {strava.error}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Race Details */}
       <div className="glass-card" style={{ padding: 16, marginBottom: 14 }}>

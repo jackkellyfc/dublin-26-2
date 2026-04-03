@@ -51,6 +51,7 @@ export interface AppState {
   raceResults: RaceResult[]
   unlockedBadges: Record<string, string> // badgeId -> date unlocked
   runHistory: CompletedRunRecord[]
+  stravaLastSync?: string
 }
 
 export const DEFAULT_USER_PROFILE: UserProfile = {

@@ -48,6 +48,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    path: '/strength',
+    label: 'Strength',
+    icon: (active: boolean) => (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6.5 6.5h11M6.5 17.5h11M3 12h18M7 9.5V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.5M17 9.5V8a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-1.5" />
+      </svg>
+    ),
+  },
+  {
     path: '/settings',
     label: 'Settings',
     icon: (active: boolean) => (
