@@ -166,24 +166,31 @@ export function useStrava() {
   }, [])
 
   // Fetch recent activities
-  const fetchActivities = useCallback(async (afterDate?: string) => {
+  const fetchActivities = useCallback(async (_afterDate?: string) => {
     setSyncing(true)
     setError(null)
     try {
       const token = await getValidToken()
-      if (!token) return []
-
-      const params = new URLSearchParams({ per_page: '50' })
-      if (afterDate) {
-        params.set('after', String(Math.floor(new Date(afterDate).getTime() / 1000)))
+      if (!token) {
+        setError('Not authenticated. Try disconnecting and reconnecting.')
+        return []
       }
+
+      // Fetch last 90 days of activities (don't filter by plan start date)
+      const ninetyDaysAgo = Math.floor((Date.now() - 90 * 24 * 60 * 60 * 1000) / 1000)
+      const params = new URLSearchParams({
+        per_page: '50',
+        after: String(ninetyDaysAgo),
+      })
 
       const res = await fetch(`/api/strava-activities?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
       if (!res.ok) {
-        throw new Error('Failed to fetch activities')
+        const errBody = await res.text()
+        console.error('Strava API error:', res.status, errBody)
+        throw new Error(`Strava returned ${res.status}. Try disconnecting and reconnecting.`)
       }
 
       const data: StravaActivity[] = await res.json()

@@ -25,21 +25,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (before) params.set('before', String(before))
     params.set('per_page', String(per_page || 30))
 
-    const response = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`,
-      {
-        headers: { Authorization: authHeader },
-      }
-    )
+    const url = `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`
 
-    const data = await response.json()
+    const response = await fetch(url, {
+      headers: { Authorization: authHeader },
+    })
+
+    const text = await response.text()
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      return res.status(502).json({
+        error: 'Invalid response from Strava',
+        status: response.status,
+        body: text.slice(0, 200),
+      })
+    }
 
     if (!response.ok) {
-      return res.status(response.status).json(data)
+      return res.status(response.status).json({
+        error: data.message || 'Strava API error',
+        strava_errors: data.errors,
+        status: response.status,
+      })
     }
 
     return res.status(200).json(data)
   } catch (err) {
-    return res.status(500).json({ error: 'Failed to fetch activities' })
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return res.status(500).json({ error: 'Failed to fetch activities', detail: message })
   }
 }
